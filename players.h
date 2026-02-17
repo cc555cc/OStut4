@@ -9,6 +9,7 @@
 typedef struct {
     char name[MAX_NAME_LEN];
     int score;
+    bool is_npc;
 } player;
 
 bool player_exists(const player players[], int total_players, const char *name);
