@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 #define TOTAL_QUESTIONS (MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT)
 #define INPUT_BUFFER MAX_LEN
@@ -58,9 +59,8 @@ void tokenize(char *input, char **tokens) {
     to_lower_inplace(input);
 
     const char *delim = " \t";
-    char *save = NULL;
     int idx = 0;
-    for (char *tok = strtok_r(input, delim, &save); tok != NULL; tok = strtok_r(NULL, delim, &save)) {
+    for (char *tok = strtok(input, delim); tok != NULL; tok = strtok(NULL, delim)) {
         if (idx >= MAX_TOKENS - 1) {
             break;
         }
@@ -92,17 +92,34 @@ void show_results(player players[], int total_players) {
     printf("\nWinner: %s\n", sorted[0].name);
 }
 
+const char *assign_color(int index) {
+    switch (index) {
+        case 0:
+            return "\033[33m";      
+        case 1:
+            return "\033[38;5;208m"; 
+        case 2:
+            return "\033[34m";   
+        case 3:
+            return "\033[35m";     
+        default:
+            return "\033[0m";    
+    }
+}
+
+
 int main(void) {
     player players[MAX_PLAYERS];
     question questions[TOTAL_QUESTIONS];
 
     printf("Welcome to Jeopardy!\n\n");
+    srand((unsigned int)time(NULL));
 
     for (int i = 0; i < MAX_PLAYERS; i++) {
         char name[MAX_NAME_LEN];
         while (true) {
             char prompt[64];
-            snprintf(prompt, sizeof(prompt), "Enter name for Player %d: ", i + 1);
+            snprintf(prompt, sizeof(prompt), "%sEnter name for Player %d: \033[0m",assign_color(i),i + 1);
             read_line(prompt, name, sizeof(name));
             if (name[0] == '\0') {
                 printf("Name cannot be empty. Try again.\n");
@@ -115,6 +132,10 @@ int main(void) {
             strncpy(players[i].name, name, sizeof(players[i].name) - 1);
             players[i].name[sizeof(players[i].name) - 1] = '\0';
             players[i].score = 0;
+            //colors//
+            const char *color = assign_color(i);
+
+            set_player_color(&players[i], color);
             break;
         }
     }
@@ -126,6 +147,7 @@ int main(void) {
         char category[MAX_CATEGORY_TEXT];
         char value_input[INPUT_BUFFER];
         int value = 0;
+        const char *color = "";
 
         display_categories(questions, TOTAL_QUESTIONS);
 
@@ -134,15 +156,22 @@ int main(void) {
             if (player_exists(players, MAX_PLAYERS, selector)) {
                 break;
             }
-            printf("Invalid player name. Try again.\n");
+            printf("\033[31mInvalid player name. Try again.\033[0m\n");
         }
 
+        int selector_idx = find_player_index(players, MAX_PLAYERS, selector);
+        color = get_player_color(&players[selector_idx]);
         while (true) {
-            read_line("Enter category: ", category, sizeof(category));
-            read_line("Enter dollar value (100-500): ", value_input, sizeof(value_input));
+            char prompt[128];
+
+            snprintf(prompt, sizeof(prompt), "%sEnter category: \033[0m", color);
+            read_line(prompt, category, sizeof(category));
+
+            snprintf(prompt, sizeof(prompt), "%sEnter dollar value (100-500): \033[0m", color);
+            read_line(prompt, value_input, sizeof(value_input));
 
             if (!parse_value(value_input, &value)) {
-                printf("Invalid dollar value. Try again.\n");
+                printf("\033[31mInvalid dollar value. Try again.\033[0m\n");
                 continue;
             }
 
@@ -154,23 +183,25 @@ int main(void) {
                 }
             }
             if (!found) {
-                printf("Unknown category. Try again.\n");
+                printf("\033[31mUnknown category. Try again.\033[0m\n");
                 continue;
             }
 
             if (already_answered(questions, TOTAL_QUESTIONS, category, value)) {
-                printf("That question has already been answered. Choose another.\n");
+                printf("\033[31mThat question has already been answered. Choose another.\033[0m\n");
                 continue;
             }
             break;
         }
 
-        display_question(questions, TOTAL_QUESTIONS, category, value);
+        display_question(questions, TOTAL_QUESTIONS, category, value, color);
 
         char answer_input[INPUT_BUFFER];
         char *tokens[MAX_TOKENS] = {0};
         char parsed_answer[MAX_ANSWER_TEXT] = "";
-        read_line("Your answer (start with 'what is' or 'who is'): ", answer_input, sizeof(answer_input));
+        char prompt[160];
+        snprintf(prompt, sizeof(prompt), "%sYour answer (start with 'what is' or 'who is'): \033[0m", color);
+        read_line(prompt, answer_input, sizeof(answer_input));
         tokenize(answer_input, tokens);
 
         if (tokens[0] && tokens[1] && tokens[2] &&
@@ -181,15 +212,15 @@ int main(void) {
         }
 
         if (parsed_answer[0] == '\0') {
-            printf("Invalid answer format. No points awarded.\n");
+            printf("\033[31mInvalid answer format. No points awarded.\033[0m\n");
         } else if (valid_answer(questions, TOTAL_QUESTIONS, category, value, parsed_answer)) {
-            printf("Correct! +$%d\n", value);
+            printf("\033[32mCorrect! +$%d\033[0m\n", value);
             update_score(players, MAX_PLAYERS, selector, value);
         } else {
-            printf("Incorrect. The correct answer was: ");
+            printf("\033Incorrect. The correct answer was: ");
             for (int i = 0; i < TOTAL_QUESTIONS; i++) {
                 if (strcasecmp(questions[i].category, category) == 0 && questions[i].value == value) {
-                    printf("%s\n", questions[i].answer);
+                    printf("%s\033[0m\n", questions[i].answer);
                     break;
                 }
             }

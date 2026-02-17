@@ -130,11 +130,11 @@ void display_categories(const question questions[], int total_questions) {
     printf("\n");
 }
 
-void display_question(const question questions[], int total_questions, const char *category, int value) {
+void display_question(const question questions[], int total_questions, const char *category, int value, const char *color) {
     for (int i = 0; i < total_questions; i++) {
         if (category_match(questions[i].category, category) && questions[i].value == value) {
-            printf("\nCategory: %s  Value: $%d\n", questions[i].category, value);
-            printf("Question: %s\n", questions[i].question);
+            printf("\n%sCategory: %s  Value: $%d\n", color, questions[i].category, value);
+            printf("Question: %s\033[0m\n", questions[i].question);
             return;
         }
     }

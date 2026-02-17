@@ -21,7 +21,7 @@ extern const char *CATEGORIES[MAX_CATEGORIES];
 
 void initialize_game(question questions[], int total_questions);
 void display_categories(const question questions[], int total_questions);
-void display_question(const question questions[], int total_questions, const char *category, int value);
+void display_question(const question questions[], int total_questions, const char *category, int value, const char *color);
 bool valid_answer(const question questions[], int total_questions, const char *category, int value, const char *answer);
 bool already_answered(const question questions[], int total_questions, const char *category, int value);
 void mark_answered(question questions[], int total_questions, const char *category, int value);

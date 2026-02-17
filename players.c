@@ -1,5 +1,4 @@
 #include "players.h"
-
 #include <ctype.h>
 #include <string.h>
 
@@ -37,4 +36,12 @@ void update_score(player players[], int total_players, const char *name, int del
     if (idx >= 0) {
         players[idx].score += delta;
     }
+}
+
+void set_player_color(player *p, const char *color) {
+    p->color = color;
+}
+
+const char *get_player_color(const player *p){
+    return p -> color;
 }
