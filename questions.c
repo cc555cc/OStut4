@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 const char *CATEGORIES[MAX_CATEGORIES] = {
@@ -179,4 +180,22 @@ int remaining_questions(const question questions[], int total_questions) {
         }
     }
     return remaining;
+}
+
+void get_random_unanswered(const question questions[], int total_questions, char *category_out, int *value_out) {
+    int unanswered[MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT];
+    int count = 0;
+    
+    for (int i = 0; i < total_questions; i++) {
+        if (!questions[i].answered) {
+            unanswered[count++] = i;
+        }
+    }
+    
+    if (count > 0) {
+        int idx = unanswered[rand() % count];
+        strncpy(category_out, questions[idx].category, MAX_CATEGORY_TEXT - 1);
+        category_out[MAX_CATEGORY_TEXT - 1] = '\0';
+        *value_out = questions[idx].value;
+    }
 }
