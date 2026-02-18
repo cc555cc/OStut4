@@ -26,5 +26,6 @@ bool valid_answer(const question questions[], int total_questions, const char *c
 bool already_answered(const question questions[], int total_questions, const char *category, int value);
 void mark_answered(question questions[], int total_questions, const char *category, int value);
 int remaining_questions(const question questions[], int total_questions);
+void get_random_unanswered(const question questions[], int total_questions, char *category_out, int *value_out);
 
 #endif
