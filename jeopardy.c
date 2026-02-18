@@ -67,9 +67,8 @@ void tokenize(char *input, char **tokens) {
     to_lower_inplace(input);
 
     const char *delim = " \t";
-    char *save = NULL;
     int idx = 0;
-    for (char *tok = strtok_r(input, delim, &save); tok != NULL; tok = strtok_r(NULL, delim, &save)) {
+    for (char *tok = strtok(input, delim); tok != NULL; tok = strtok(NULL, delim)) {
         if (idx >= MAX_TOKENS - 1) {
             break;
         }
