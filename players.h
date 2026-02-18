@@ -9,11 +9,14 @@
 typedef struct {
     char name[MAX_NAME_LEN];
     int score;
+    const char *color;
     bool is_npc;
 } player;
 
 bool player_exists(const player players[], int total_players, const char *name);
 void update_score(player players[], int total_players, const char *name, int delta);
 int find_player_index(const player players[], int total_players, const char *name);
+void set_player_color(player *p, const char *color);
+const char *get_player_color(const player *p);
 
 #endif
