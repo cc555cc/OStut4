@@ -1,4 +1,3 @@
-#include "jeopardy.h"
 #include "players.h"
 #include "questions.h"
 
@@ -11,7 +10,16 @@
 #include <time.h>
 
 #define TOTAL_QUESTIONS (MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT)
-#define INPUT_BUFFER MAX_LEN
+#define MAX_LEN 256
+#define MAX_TOKENS 10
+
+#define INPUT_BUFFER 256
+
+
+#define DOUBLE_POINTS_CHANCE 20
+
+static int g_questions_taken[MAX_PLAYERS] = {0};
+static int g_total_players_for_results = 0;
 
 static void trim_newline(char *s) {
     size_t len = strlen(s);
@@ -57,6 +65,23 @@ static bool parse_value(const char *input, int *value) {
     return true;
 }
 
+static int roll_multiplier(void) {
+    int r = rand() % 100;
+    return (r < DOUBLE_POINTS_CHANCE) ? 2 : 1;
+}
+
+static void display_scoreboard(const player players[], int total_players) {
+    printf("\n=== Scoreboard ===\n");
+    for (int i = 0; i < total_players; i++) {
+        printf("%s: $%d (Questions used: %d)%s\n",
+               players[i].name,
+               players[i].score,
+               g_questions_taken[i],
+               players[i].is_npc ? " [NPC]" : "");
+    }
+    printf("==================\n\n");
+}
+
 void tokenize(char *input, char **tokens) {
     for (size_t i = 0; input[i] != '\0'; i++) {
         if (ispunct((unsigned char)input[i])) {
@@ -79,25 +104,53 @@ void tokenize(char *input, char **tokens) {
 
 void show_results(player players[], int total_players) {
     player sorted[MAX_PLAYERS];
+    int qt_sorted[MAX_PLAYERS];
+
     for (int i = 0; i < total_players; i++) {
         sorted[i] = players[i];
+        qt_sorted[i] = g_questions_taken[i];
     }
 
     for (int i = 0; i < total_players - 1; i++) {
         for (int j = 0; j < total_players - 1 - i; j++) {
+            bool swap = false;
+
             if (sorted[j].score < sorted[j + 1].score) {
+                swap = true;
+            } else if (sorted[j].score == sorted[j + 1].score) {
+                if (qt_sorted[j] > qt_sorted[j + 1]) {
+                    swap = true;
+                }
+            }
+
+            if (swap) {
                 player tmp = sorted[j];
                 sorted[j] = sorted[j + 1];
                 sorted[j + 1] = tmp;
+
+                int t = qt_sorted[j];
+                qt_sorted[j] = qt_sorted[j + 1];
+                qt_sorted[j + 1] = t;
             }
         }
     }
 
     printf("\nFinal Results:\n");
     for (int i = 0; i < total_players; i++) {
-        printf("%d. %s - $%d\n", i + 1, sorted[i].name, sorted[i].score);
+        printf("%d. %s - $%d (Questions used: %d)\n",
+               i + 1, sorted[i].name, sorted[i].score, qt_sorted[i]);
     }
-    printf("\nWinner: %s\n", sorted[0].name);
+
+    if (total_players >= 2 &&
+        sorted[0].score == sorted[1].score &&
+        qt_sorted[0] == qt_sorted[1]) {
+        printf("\nResult: TRUE TIE (same score and same questions used)\n");
+    } else {
+        printf("\nWinner: %s\n", sorted[0].name);
+        if (total_players >= 2 && sorted[0].score == sorted[1].score) {
+            printf("(Tie-breaker applied: fewer questions used)\n");
+        }
+    }
 }
 
 int main(void) {
@@ -133,6 +186,10 @@ int main(void) {
             break;
         }
         printf("Invalid number. Please enter 1-%d.\n", total_players);
+    }
+
+    for (int i = 0; i < MAX_PLAYERS; i++) {
+        g_questions_taken[i] = 0;
     }
 
     for (int i = 0; i < num_human_players; i++) {
@@ -243,16 +300,23 @@ int main(void) {
             break;
         }
 
+        g_questions_taken[current_player_idx]++;
+
+        int multiplier = roll_multiplier();
+        if (multiplier == 2) {
+            printf(">>> DOUBLE POINTS ACTIVE! ($%d -> $%d)\n", value, value * 2);
+        }
+
         display_question(questions, TOTAL_QUESTIONS, category, value);
 
         char answer_input[INPUT_BUFFER];
         char *tokens[MAX_TOKENS] = {0};
         char parsed_answer[MAX_ANSWER_TEXT] = "";
-        
+
         if (is_npc_turn) {
             int correct_chance = rand() % 100;
             bool npc_correct = correct_chance < 60;
-            
+
             if (npc_correct) {
                 for (int i = 0; i < TOTAL_QUESTIONS; i++) {
                     if (strcasecmp(questions[i].category, category) == 0 && questions[i].value == value) {
@@ -262,8 +326,10 @@ int main(void) {
                     }
                 }
                 printf("%s answers: what is %s\n", selector, parsed_answer);
-                printf("Correct! +$%d\n", value);
-                update_score(players, total_players, selector, value);
+
+                int points = value * multiplier;
+                printf("Correct! +$%d\n", points);
+                update_score(players, total_players, selector, points);
             } else {
                 printf("%s answers: what is unknown\n", selector);
                 printf("Incorrect. The correct answer was: ");
@@ -276,13 +342,13 @@ int main(void) {
             }
         } else {
             read_line("Your answer (start with 'what is' or 'who is'): ", answer_input, sizeof(answer_input));
-            
+
             if (is_quit_command(answer_input)) {
                 printf("\nGame terminated early.\n");
                 quit_game = true;
                 break;
             }
-            
+
             tokenize(answer_input, tokens);
 
             if (tokens[0] && tokens[1] && tokens[2] &&
@@ -295,8 +361,9 @@ int main(void) {
             if (parsed_answer[0] == '\0') {
                 printf("Invalid answer format. No points awarded.\n");
             } else if (valid_answer(questions, TOTAL_QUESTIONS, category, value, parsed_answer)) {
-                printf("Correct! +$%d\n", value);
-                update_score(players, total_players, selector, value);
+                int points = value * multiplier;
+                printf("Correct! +$%d\n", points);
+                update_score(players, total_players, selector, points);
             } else {
                 printf("Incorrect. The correct answer was: ");
                 for (int i = 0; i < TOTAL_QUESTIONS; i++) {
@@ -309,6 +376,8 @@ int main(void) {
         }
 
         mark_answered(questions, TOTAL_QUESTIONS, category, value);
+
+        display_scoreboard(players, total_players);
     }
 
     show_results(players, total_players);
