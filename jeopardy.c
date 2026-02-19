@@ -10,16 +10,13 @@
 #include <time.h>
 
 #define TOTAL_QUESTIONS (MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT)
-#define MAX_LEN 256
-#define MAX_TOKENS 10
 
 #define INPUT_BUFFER 256
-
+#define MAX_TOKENS 10
 
 #define DOUBLE_POINTS_CHANCE 20
 
 static int g_questions_taken[MAX_PLAYERS] = {0};
-static int g_total_players_for_results = 0;
 
 static void trim_newline(char *s) {
     size_t len = strlen(s);
@@ -73,7 +70,12 @@ static int roll_multiplier(void) {
 static void display_scoreboard(const player players[], int total_players) {
     printf("\n=== Scoreboard ===\n");
     for (int i = 0; i < total_players; i++) {
-        printf("%s: $%d (Questions used: %d)%s\n",
+        const char *c = get_player_color(&players[i]);
+        if (c == NULL) {
+            c = "\033[0m";
+        }
+        printf("%s%s\033[0m: $%d (Questions used: %d)%s\n",
+               c,
                players[i].name,
                players[i].score,
                g_questions_taken[i],
@@ -82,7 +84,7 @@ static void display_scoreboard(const player players[], int total_players) {
     printf("==================\n\n");
 }
 
-void tokenize(char *input, char **tokens) {
+static void tokenize(char *input, char **tokens) {
     for (size_t i = 0; input[i] != '\0'; i++) {
         if (ispunct((unsigned char)input[i])) {
             input[i] = ' ';
@@ -102,7 +104,7 @@ void tokenize(char *input, char **tokens) {
     tokens[idx] = NULL;
 }
 
-void show_results(player players[], int total_players) {
+static void show_results(player players[], int total_players) {
     player sorted[MAX_PLAYERS];
     int qt_sorted[MAX_PLAYERS];
 
@@ -153,36 +155,36 @@ void show_results(player players[], int total_players) {
     }
 }
 
-const char *assign_color(int index) {
+static const char *assign_color(int index) {
     switch (index) {
-        case 0:
-            return "\033[33m";      
-        case 1:
-            return "\033[38;5;208m"; 
-        case 2:
-            return "\033[34m";   
-        case 3:
-            return "\033[35m";     
-        default:
-            return "\033[0m";    
+        case 0: return "\033[33m";        // yellow
+        case 1: return "\033[38;5;208m";  // orange
+        case 2: return "\033[34m";        // blue
+        case 3: return "\033[35m";        // purple
+        default: return "\033[0m";
     }
 }
-
 
 int main(void) {
     player players[MAX_PLAYERS];
     question questions[TOTAL_QUESTIONS];
+
     int total_players = 0;
     int num_human_players = 0;
 
     srand((unsigned int)time(NULL));
 
     printf("Welcome to Jeopardy!\n\n");
-    srand((unsigned int)time(NULL));
 
     char num_input[INPUT_BUFFER];
+
     while (true) {
         read_line("How many total players (1-4)? ", num_input, sizeof(num_input));
+        if (is_quit_command(num_input)) {
+            printf("Goodbye.\n");
+            return 0;
+        }
+
         char *end = NULL;
         long n = strtol(num_input, &end, 10);
         if (end != num_input && *end == '\0' && n >= 1 && n <= MAX_PLAYERS) {
@@ -196,6 +198,11 @@ int main(void) {
         char prompt[64];
         snprintf(prompt, sizeof(prompt), "How many human players (1-%d)? ", total_players);
         read_line(prompt, num_input, sizeof(num_input));
+        if (is_quit_command(num_input)) {
+            printf("Goodbye.\n");
+            return 0;
+        }
+
         char *end = NULL;
         long n = strtol(num_input, &end, 10);
         if (end != num_input && *end == '\0' && n >= 1 && n <= total_players) {
@@ -211,10 +218,18 @@ int main(void) {
 
     for (int i = 0; i < num_human_players; i++) {
         char name[MAX_NAME_LEN];
+        const char *color = assign_color(i);
+
         while (true) {
-            char prompt[64];
-            snprintf(prompt, sizeof(prompt), "%sEnter name for Player %d: \033[0m",assign_color(i),i + 1);
+            char prompt[96];
+            snprintf(prompt, sizeof(prompt), "%sEnter name for Player %d: \033[0m", color, i + 1);
             read_line(prompt, name, sizeof(name));
+
+            if (is_quit_command(name)) {
+                printf("Goodbye.\n");
+                return 0;
+            }
+
             if (name[0] == '\0') {
                 printf("Name cannot be empty. Try again.\n");
                 continue;
@@ -223,14 +238,12 @@ int main(void) {
                 printf("That name is already taken. Try again.\n");
                 continue;
             }
+
             strncpy(players[i].name, name, sizeof(players[i].name) - 1);
             players[i].name[sizeof(players[i].name) - 1] = '\0';
             players[i].score = 0;
-            //colors//
-            const char *color = assign_color(i);
-
-            set_player_color(&players[i], color);
             players[i].is_npc = false;
+            set_player_color(&players[i], color);
             break;
         }
     }
@@ -239,6 +252,7 @@ int main(void) {
         snprintf(players[i].name, sizeof(players[i].name), "NPC %d", i - num_human_players + 1);
         players[i].score = 0;
         players[i].is_npc = true;
+        set_player_color(&players[i], assign_color(i));
     }
 
     initialize_game(questions, TOTAL_QUESTIONS);
@@ -246,12 +260,12 @@ int main(void) {
     printf("\nType 'quit' or 'exit' at any prompt to end the game early.\n");
 
     bool quit_game = false;
+
     while (!quit_game && remaining_questions(questions, TOTAL_QUESTIONS) > 0) {
         char selector[MAX_NAME_LEN];
         char category[MAX_CATEGORY_TEXT];
         char value_input[INPUT_BUFFER];
         int value = 0;
-        const char *color = "";
 
         display_categories(questions, TOTAL_QUESTIONS);
 
@@ -262,6 +276,7 @@ int main(void) {
                 quit_game = true;
                 break;
             }
+
             current_player_idx = find_player_index(players, total_players, selector);
             if (current_player_idx >= 0) {
                 break;
@@ -275,15 +290,18 @@ int main(void) {
         }
 
         bool is_npc_turn = players[current_player_idx].is_npc;
+        const char *color = get_player_color(&players[current_player_idx]);
+        if (color == NULL) {
+            color = "\033[0m";
+        }
 
         if (is_npc_turn) {
             get_random_unanswered(questions, TOTAL_QUESTIONS, category, &value);
-            printf("%s picks: %s for $%d\n", selector, category, value);
+            printf("%s%s\033[0m picks: %s for $%d\n", color, selector, category, value);
         } else {
-            int selector_idx = find_player_index(players, MAX_PLAYERS, selector);
-            color = get_player_color(&players[selector_idx]);
             while (true) {
-                char prompt[128];
+                char prompt[160];
+
                 snprintf(prompt, sizeof(prompt), "%sEnter category: \033[0m", color);
                 read_line(prompt, category, sizeof(category));
                 if (is_quit_command(category)) {
@@ -319,6 +337,7 @@ int main(void) {
                     printf("\033[3mThat question has already been answered. Choose another.\033[0m\n");
                     continue;
                 }
+
                 break;
             }
         }
@@ -328,9 +347,7 @@ int main(void) {
             break;
         }
 
-<<<<<<< HEAD
-        display_question(questions, TOTAL_QUESTIONS, category, value, color);
-=======
+        // Track usage + double points
         g_questions_taken[current_player_idx]++;
 
         int multiplier = roll_multiplier();
@@ -338,16 +355,13 @@ int main(void) {
             printf(">>> DOUBLE POINTS ACTIVE! ($%d -> $%d)\n", value, value * 2);
         }
 
-        display_question(questions, TOTAL_QUESTIONS, category, value);
->>>>>>> ali
+        // IMPORTANT: 5-arg version with color (matches your questions.h)
+        display_question(questions, TOTAL_QUESTIONS, category, value, color);
 
         char answer_input[INPUT_BUFFER];
         char *tokens[MAX_TOKENS] = {0};
         char parsed_answer[MAX_ANSWER_TEXT] = "";
-<<<<<<< HEAD
-=======
 
->>>>>>> ali
         if (is_npc_turn) {
             int correct_chance = rand() % 100;
             bool npc_correct = correct_chance < 60;
@@ -360,19 +374,14 @@ int main(void) {
                         break;
                     }
                 }
-<<<<<<< HEAD
-                printf("%s%s answers: what is %s\033[0m\n", color , selector, parsed_answer);
-                printf("\033[32mCorrect! +$%d\033[0m\n", value);
-                update_score(players, total_players, selector, value);
-=======
-                printf("%s answers: what is %s\n", selector, parsed_answer);
+
+                printf("%s%s\033[0m answers: what is %s\n", color, selector, parsed_answer);
 
                 int points = value * multiplier;
-                printf("Correct! +$%d\n", points);
+                printf("\033[32mCorrect! +$%d\033[0m\n", points);
                 update_score(players, total_players, selector, points);
->>>>>>> ali
             } else {
-                printf("%s %s answers: what is unknown\n", color, selector);
+                printf("%s%s\033[0m answers: what is unknown\n", color, selector);
                 printf("\033[31mIncorrect. The correct answer was: \033[0m");
                 for (int i = 0; i < TOTAL_QUESTIONS; i++) {
                     if (strcasecmp(questions[i].category, category) == 0 && questions[i].value == value) {
@@ -382,12 +391,10 @@ int main(void) {
                 }
             }
         } else {
-<<<<<<< HEAD
-            char prompt[160];
-            snprintf(prompt, sizeof(prompt), "%sYour answer (start with 'what is' or 'who is'): \033[0m", color);
+            char prompt[180];
+            snprintf(prompt, sizeof(prompt),
+                     "%sYour answer (start with 'what is' or 'who is'): \033[0m", color);
             read_line(prompt, answer_input, sizeof(answer_input));
-=======
-            read_line("Your answer (start with 'what is' or 'who is'): ", answer_input, sizeof(answer_input));
 
             if (is_quit_command(answer_input)) {
                 printf("\nGame terminated early.\n");
@@ -395,11 +402,10 @@ int main(void) {
                 break;
             }
 
->>>>>>> ali
             tokenize(answer_input, tokens);
 
             if (tokens[0] && tokens[1] && tokens[2] &&
-            (strcmp(tokens[0], "what") == 0 || strcmp(tokens[0], "who") == 0) &&
+                (strcmp(tokens[0], "what") == 0 || strcmp(tokens[0], "who") == 0) &&
                 strcmp(tokens[1], "is") == 0) {
                 strncpy(parsed_answer, tokens[2], sizeof(parsed_answer) - 1);
                 parsed_answer[sizeof(parsed_answer) - 1] = '\0';
@@ -408,19 +414,14 @@ int main(void) {
             if (parsed_answer[0] == '\0') {
                 printf("\033[31mInvalid answer format. No points awarded.\033[0m\n");
             } else if (valid_answer(questions, TOTAL_QUESTIONS, category, value, parsed_answer)) {
-<<<<<<< HEAD
-                printf("\033[32mCorrect! +$%d\033[0m\n", value);
-                update_score(players, MAX_PLAYERS, selector, value);
-=======
                 int points = value * multiplier;
-                printf("Correct! +$%d\n", points);
+                printf("\033[32mCorrect! +$%d\033[0m\n", points);
                 update_score(players, total_players, selector, points);
->>>>>>> ali
             } else {
-                printf("\033[31mIncorrect. The correct answer was: ");
+                printf("\033[31mIncorrect. The correct answer was: \033[0m");
                 for (int i = 0; i < TOTAL_QUESTIONS; i++) {
                     if (strcasecmp(questions[i].category, category) == 0 && questions[i].value == value) {
-                        printf("%s\033[0m\n", questions[i].answer);
+                        printf("%s\n", questions[i].answer);
                         break;
                     }
                 }
@@ -428,7 +429,6 @@ int main(void) {
         }
 
         mark_answered(questions, TOTAL_QUESTIONS, category, value);
-
         display_scoreboard(players, total_players);
     }
 
