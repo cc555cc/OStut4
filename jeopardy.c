@@ -347,7 +347,6 @@ int main(void) {
             break;
         }
 
-        // Track usage + double points
         g_questions_taken[current_player_idx]++;
 
         int multiplier = roll_multiplier();
@@ -355,7 +354,6 @@ int main(void) {
             printf(">>> DOUBLE POINTS ACTIVE! ($%d -> $%d)\n", value, value * 2);
         }
 
-        // IMPORTANT: 5-arg version with color (matches your questions.h)
         display_question(questions, TOTAL_QUESTIONS, category, value, color);
 
         char answer_input[INPUT_BUFFER];
