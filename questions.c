@@ -153,13 +153,12 @@ void initialize_game(question questions[], int total_questions) {
 }
 
 void display_categories(const question questions[], int total_questions) {
-    (void)total_questions;
     printf("\nAvailable Questions:\n");
     for (int c = 0; c < MAX_CATEGORIES; c++) {
         printf("  %s: ", CATEGORIES[c]);
         for (int v = 0; v < MAX_QUESTIONS_PER_CAT; v++) {
             int value = (v + 1) * 100;
-            bool answered = already_answered(questions, MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT, CATEGORIES[c], value);
+            bool answered = already_answered(questions, total_questions, CATEGORIES[c], value);
             if (answered) {
                 printf("[---] ");
             } else {
@@ -225,13 +224,13 @@ int remaining_questions(const question questions[], int total_questions) {
 void get_random_unanswered(const question questions[], int total_questions, char *category_out, int *value_out) {
     int unanswered[MAX_CATEGORIES * MAX_QUESTIONS_PER_CAT];
     int count = 0;
-    
+
     for (int i = 0; i < total_questions; i++) {
         if (!questions[i].answered) {
             unanswered[count++] = i;
         }
     }
-    
+
     if (count > 0) {
         int idx = unanswered[rand() % count];
         strncpy(category_out, questions[idx].category, MAX_CATEGORY_TEXT - 1);
